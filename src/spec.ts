@@ -386,7 +386,7 @@ export function mainHelp(version: string): string {
   ];
   const w = Math.max(...rows.map(([c]) => c.length));
   return [
-    `boxline ${version}: cloud browsers and shells for AI agents`,
+    `boxline ${version}: the infrastructure AI agents need (browsers, shells, storage, isolated machines)`,
     "",
     "Usage: boxline <command> [options]",
     "",

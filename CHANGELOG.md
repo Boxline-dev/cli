@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.1.0 (not published yet)
+## Next
+
+- The help's first line is Boxline's main line: the infrastructure AI agents need.
+
+## 0.1.0 (2026-10-02)
+
+Published on npm as `@boxline/cli` (npm refused the unscoped name `boxline`); the command is `boxline`.
 
 The first version of the `boxline` command line, built on the Node SDK 1.0.
 
