@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Entry point of `boxline` / `npx boxline`. */
+/** Entry point of `boxline` / `npx @boxline/cli`. */
 import { main } from "./cli.js";
 
 // `boxline fetch … | head` closes the pipe early: stop quietly instead of printing EPIPE.

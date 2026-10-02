@@ -4,11 +4,11 @@ Cloud browsers and shells for AI agents, from your terminal. Give the AI agent a
 page into Markdown, a screenshot or a PDF, and open a terminal in an isolated machine.
 
 ```bash
-npx boxline login                 # paste your API key (it is not shown while you type)
-npx boxline run "Find the price of the cheapest plan on https://example.com/pricing"
+npx @boxline/cli login                 # paste your API key (it is not shown while you type)
+npx @boxline/cli run "Find the price of the cheapest plan on https://example.com/pricing"
 ```
 
-Or install it: `npm install -g boxline`. Node 20 or newer. Built on the [Node SDK](https://www.npmjs.com/package/@boxline/sdk) (`@boxline/sdk`).
+Or install it: `npm install -g @boxline/cli`. Node 20 or newer. Built on the [Node SDK](https://www.npmjs.com/package/@boxline/sdk) (`@boxline/sdk`).
 
 - [Your API key](#your-api-key)
 - [Run the AI agent](#run-the-ai-agent)
