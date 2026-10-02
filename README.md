@@ -1,6 +1,8 @@
 # boxline: the Boxline command line
 
-Cloud browsers and shells for AI agents, from your terminal. Give the AI agent a task and watch it work, turn any
+**Give your AI agents the infrastructure they need: browsers, shells, storage and isolated machines.**
+
+From your terminal: give the AI agent a task and watch it work, turn any
 page into Markdown, a screenshot or a PDF, and open a terminal in an isolated machine.
 
 ```bash
