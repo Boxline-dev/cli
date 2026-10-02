@@ -1,0 +1,55 @@
+{
+  "name": "boxline",
+  "version": "0.1.0",
+  "description": "The Boxline command line: run AI agents on cloud browsers, fetch and screenshot pages, and open shells in sandboxes.",
+  "keywords": [
+    "boxline",
+    "cli",
+    "browser",
+    "headless",
+    "chrome",
+    "sandbox",
+    "shell",
+    "ai-agents",
+    "automation"
+  ],
+  "license": "MIT",
+  "author": "Boxline",
+  "homepage": "https://docs.boxline.dev",
+  "type": "module",
+  "bin": {
+    "boxline": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Boxline-dev/cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Boxline-dev/cli/issues"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@boxline/sdk": "^1.1.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "typescript": "~6.0.3",
+    "@types/node": "^22.15.0"
+  }
+}
