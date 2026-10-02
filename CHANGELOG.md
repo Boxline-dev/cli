@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 0.1.1 (2026-10-02)
 
 - The help's first line is Boxline's main line: the infrastructure AI agents need.
 
