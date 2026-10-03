@@ -147,7 +147,7 @@ boxline credentials set API_KEY --origin https://api.example.com < key.txt
 boxline credentials set SHOP --type password --username ops@example.com --origin https://shop.example.com   # asks for the password
 printf '%s\n%s\n' "$SHOP_PASSWORD" "$SHOP_2FA_KEY" | boxline credentials set SHOP --type password \
   --username ops@example.com --origin https://shop.example.com --2fa                                       # password, then 2FA key
-boxline credentials list                                         # names, types, sites, user names; never the values
+boxline credentials list                                         # names, types, sites, user names, code sources; never the values
 boxline credentials delete GITHUB_TOKEN
 
 boxline run "Sign in to https://shop.example.com with %SHOP.username% and %SHOP.password%, then list my orders" --credential SHOP
@@ -159,6 +159,31 @@ and, with `--2fa`, the 2FA setup key (or an `otpauth://` link) is the second. `-
 needs `--username` and at least one `--origin`, and a plan with password credentials. `--shell` lets the AI use the credential in
 bash commands too. Link a password to a browser profile with the SDK or the console so a run in that profile can sign in
 again by itself.
+
+### Codes by email or SMS, and signing in
+
+A password's 2FA codes can come from an authenticator key (`--2fa`, the same as `--code-source totp`), from **you**
+(`--code-source push`) or from an **endpoint of yours** (`--code-source url --code-url https://…`). The site's email or
+SMS goes to you; the AI never sees the code or a sign-in ("magic") link. `--code-timeout 300` is how many seconds a run
+waits for one (5 to 900).
+
+```bash
+boxline credentials set SHOP --username ops@example.com --origin https://shop.example.com --code-source push
+boxline credentials set SHOP --username ops@example.com --origin https://shop.example.com \
+  --code-source url --code-url https://ops.example.com/boxline-codes    # prints a signing secret once
+
+# When a run waits (the webhook credential.code_needed says so), send what the site emailed or texted:
+printf '%s\n' "$CODE" | boxline credentials push-code SHOP             # a code, or a sign-in link (https://…)
+boxline credentials push-code SHOP                                      # or type it at the hidden prompt
+
+boxline sessions login <id> SHOP                                        # sign a session's browser in, in one call
+```
+
+A code or link is never an argument (`push-code` asks for it without showing it, or reads one line from a pipe). It is
+used once, by a wait that began before it arrived, and kept for 10 minutes; a link must be on one of the credential's
+sites. With `url` the platform asks your address every 5 seconds while a run waits (a signed request, like a webhook).
+`sessions login` runs a short AI run in the session with only that credential, on its sites (`--url` picks the sign-in
+page); it needs a plan with password credentials and counts as an agent run.
 
 ## Search
 
@@ -199,6 +224,7 @@ boxline sessions list                           # --status running, --limit 50, 
 boxline sessions get <id>
 boxline sessions live <id>                      # the live view link: watch and take over in a browser
 boxline sessions release <id>                   # stop it (billing stops)
+boxline sessions login <id> SHOP                # sign the browser in with a saved password credential (--url for the sign-in page)
 ```
 
 The live view link works like a password: anyone who has it can watch and control the browser. In text output the
@@ -254,14 +280,14 @@ Colours are used only on a terminal, never when `NO_COLOR` is set (`FORCE_COLOR=
 | `boxline continue <runId>` | Carry on a run that stopped at a limit, and watch it |
 | `boxline message <runId> "<text>"` | Tell a working run something |
 | `boxline tasks list` / `boxline tasks run <id>` | List saved tasks; run one and print its result |
-| `boxline credentials list\|set\|delete` | Passwords and secrets (`set` reads the values from a hidden prompt or stdin) |
+| `boxline credentials list\|set\|push-code\|delete` | Passwords and secrets (`set` reads the values from a hidden prompt or stdin; `push-code` sends a 2FA code or sign-in link the same way) |
 | `boxline search "<query>"` | Search the web (and fetch the top pages) |
 | `boxline fetch <url>` | Print a page as Markdown, HTML or text |
 | `boxline screenshot <url>` | Save a screenshot of a page |
 | `boxline pdf <url>` | Save a page as a PDF |
 | `boxline extract <url>` | Pull structured data out of a page with AI |
 | `boxline crawl <url>` | Follow links from a page and collect what they say |
-| `boxline sessions list\|create\|get\|release\|live` | Manage sessions |
+| `boxline sessions list\|create\|get\|release\|login\|live` | Manage sessions (`login` signs the browser in with a password credential) |
 | `boxline exec <id> -- <command…>` | Run a command in a session's shell |
 | `boxline shell <id>` | Open an interactive terminal in a session |
 | `boxline files ls\|get\|put\|rm <id> <path> [local]` | Files in a session's workspace |

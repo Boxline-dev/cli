@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 (2026-10-03)
+
+Built on the Node SDK 1.3 (`@boxline/sdk` `^1.3.0`).
+
+### Added
+
+- `boxline credentials set` takes `--code-source totp|push|url` (where a password's 2FA codes come from: an
+  authenticator key, you, or an endpoint of yours; `--2fa` is the same as `totp`), `--code-url` (the https:// address
+  asked for each code or sign-in link; the signing secret is printed once) and `--code-timeout` (5 to 900 seconds a run
+  waits). `--remove-2fa` takes 2FA off whatever the source was. Changing where the codes come from needs the password
+  again, as the platform requires. `credentials list` names a password's code source.
+- `boxline credentials push-code NAME`: sends the 2FA code or sign-in link a site emailed or texted to a run that waits
+  for it. The code or link is read from a hidden prompt or from stdin, never an argument; a value that starts with
+  `http://` or `https://` is a link.
+- `boxline sessions login ID CREDENTIAL [--url PAGE]`: signs a session's browser in with a password credential in one
+  call (a short AI run with only that credential, on its sites). A failure names the run to look at; a code that did not
+  come says to push it. A login that takes too long is stopped (15 steps, plus the credential's code timeout) and
+  fails with `credential_login_timeout`.
+
 ## 0.2.0 (2026-10-03)
 
 Built on the Node SDK 1.2 (`@boxline/sdk` `^1.2.0`).

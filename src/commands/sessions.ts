@@ -1,5 +1,5 @@
-/** sessions list | create | get | release | live */
-import type { CaptchaMode, CreateSessionParams, SessionData } from "@boxline/sdk";
+/** sessions list | create | get | release | login | live */
+import { CredentialCodeTimeoutError, CredentialLinkWrongSiteError, CredentialLoginFailedError, type CaptchaMode, type CreateSessionParams, type SessionData } from "@boxline/sdk";
 import { arg, bool, num, str } from "../args.js";
 import type { Ctx } from "../context.js";
 import { CliError, details, formatDate, formatDuration, formatUsd, relativeTime, table, type Style, UsageError } from "../output.js";
@@ -139,4 +139,33 @@ export async function live(ctx: Ctx): Promise<number> {
   ctx.print(`${urls.liveUrl}\n`);
   ctx.info(ctx.err.dim("Open it in a browser. Treat it like a password: anyone with the link can watch and control the session.\n"));
   return 0;
+}
+
+/**
+ * sessions login ID CREDENTIAL: signs the session's browser in with a password credential (a short AI run on the
+ * credential's sites; a code source of push or url waits for its code or link). The model never sees a value.
+ */
+export async function login(ctx: Ctx): Promise<number> {
+  const id = arg(ctx.parsed, "id")!;
+  const credential = arg(ctx.parsed, "credential")!;
+  const url = str(ctx.parsed, "url");
+  if (url !== undefined && !/^https?:\/\/[^\s/]+/i.test(url)) throw new UsageError(`--url "${url}" is not an address like https://example.com/login`, "sessions login");
+  const bx = ctx.client();
+  const session = await bx.sessions.get(id);
+  ctx.info(ctx.err.dim(`Signing in with ${credential}…\n`));
+  try {
+    const page = await session.login(credential, url !== undefined ? { url } : {});
+    if (ctx.json) {
+      ctx.printJson(page);
+      return 0;
+    }
+    ctx.info(`${ctx.err.green("✓")} Signed in with ${ctx.err.bold(credential)} ${ctx.err.dim(`(${page.title || "no title"}, ${page.url}; run ${page.runId})`)}\n`);
+    return 0;
+  } catch (err) {
+    // Say which run tried, and what to do about a code that did not come.
+    if (err instanceof CredentialLoginFailedError) throw new CliError(`${err.message}${err.runId ? ` (run ${err.runId}; watch the session with "boxline sessions live ${id}")` : ""}`, err.code);
+    if (err instanceof CredentialCodeTimeoutError) throw new CliError(`${err.message} (send the code or link with "boxline credentials push-code ${credential}" while it waits)`, err.code);
+    if (err instanceof CredentialLinkWrongSiteError) throw new CliError(err.message, err.code);
+    throw err;
+  }
 }
