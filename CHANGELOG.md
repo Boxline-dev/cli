@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+Built on the Node SDK 1.2 (`@boxline/sdk` `^1.2.0`).
+
+### Added
+
+- `boxline credentials list | set | delete` for passwords and secrets. `set NAME` makes a **secret** by default, or a
+  **password** with `--type password` (also implied by `--username`, `--2fa` or `--remove-2fa`, and by an existing
+  password's name): `--username`, one or more `--origin` (required for a password), `--2fa` (a 2FA setup key after the
+  password), `--remove-2fa`, `--scope`, `--shell`, `--description`. Passwords, 2FA keys and secret values are read from
+  a hidden prompt or from stdin (a password on the first line, its 2FA key on the second), never from an argument:
+  there is no option that takes one. `list` shows the type, sites, a password's user name and 2FA, a secret's preview,
+  never a value.
+- Making a credential that only the AI could use readable by shells (`credentials set NAME --scope shell|all`, or
+  `--shell`) needs its values again, like a new `--origin`: a password with 2FA also needs `--2fa` (or `--remove-2fa`).
+  The platform refuses the change otherwise.
+- `boxline run --credential NAME` (repeatable): the AI may type the saved credential, as `%NAME%` or
+  `%NAME.username%`, `%NAME.password%` and `%NAME.otp%`, only on its sites. A continued run keeps its credentials.
+
+### Changed (breaking)
+
+- `boxline secrets list | set | delete` are gone: use `boxline credentials …` (a secret is `--type secret`, the
+  default). `--secret NAME` on `run`, `continue` and `tasks run` is unchanged: it still passes a value from the
+  environment for one run.
+
 ## 0.1.1 (2026-10-02)
 
 - The help's first line is Boxline's main line: the infrastructure AI agents need.

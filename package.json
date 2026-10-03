@@ -1,6 +1,6 @@
 {
   "name": "@boxline/cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "The Boxline command line: run AI agents on cloud browsers, fetch and screenshot pages, and open shells in sandboxes.",
   "keywords": [
     "boxline",
@@ -44,7 +44,7 @@
     "prepublishOnly": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@boxline/sdk": "^1.1.0",
+    "@boxline/sdk": "^1.2.0",
     "ws": "^8.22.0"
   },
   "devDependencies": {

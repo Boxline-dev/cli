@@ -15,7 +15,7 @@ Or install it: `npm install -g @boxline/cli`. Node 20 or newer. Built on the [No
 - [Your API key](#your-api-key)
 - [Run the AI agent](#run-the-ai-agent)
 - [Saved tasks](#saved-tasks)
-- [Secrets](#secrets)
+- [Credentials](#credentials)
 - [Search](#search)
 - [Pages: fetch, screenshot, pdf, extract, crawl](#pages-fetch-screenshot-pdf-extract-crawl)
 - [Sessions](#sessions)
@@ -71,6 +71,7 @@ The page is the placeholder site for documentation examples.
 | `--var name=value` | A value the task uses as `%name%` |
 | `--secret NAME` | A secret the task uses as `%NAME%`, read from the environment variable `NAME` |
 | `--secret NAME@https://example.com` | The same, typed only into fields on that site (recommended for passwords) |
+| `--credential NAME` | A saved credential (see [Credentials](#credentials)) the AI may type: `%NAME%` for a secret, `%NAME.username%`, `%NAME.password%` and `%NAME.otp%` for a password |
 | `--captcha ask\|solve\|ignore` | When a CAPTCHA appears: ask a person (default), try to solve it (paid plans), or carry on |
 | `--keep` | Keep the run's session afterwards (to look at it, or run more) |
 | `--steps <n>` | Stop after this many steps, 1 to 1000 (default 30); `--steps none` (or `--no-step-limit`): no step limit |
@@ -87,7 +88,7 @@ boxline run "Sign in to https://example.com as %email% with %SITE_PASSWORD% and 
 ```
 
 The model only ever sees `%SITE_PASSWORD%`; the platform fills in the value right before typing, and hides it in
-everything it shows and keeps.
+everything it shows and keeps. For a value you keep, save a [credential](#credentials) and pass `--credential NAME`.
 
 When the agent asks for help (to sign in, say) the run pauses: open the browser with the command it shows
 (`boxline sessions live <id>`), do what is needed, then press Enter in the terminal to hand the browser back (type a
@@ -109,7 +110,8 @@ Continue: boxline continue run_8f2k… [--steps 30] [--note "..."] (until 14:05)
 ```
 
 `boxline continue <runId>` starts a new run in the same session that knows what the first one did, and shows it the
-same way (`--steps`, `--max-cost`, `--note`; a run that had `--var` or `--secret` values needs them again). The exit code
+same way (`--steps`, `--max-cost`, `--note`; a run that had `--var` or `--secret` values needs them again; its
+`--credential`s carry over). The exit code
 stays 1 for a run that stopped at a limit.
 
 ## Saved tasks
@@ -128,21 +130,35 @@ text; the task's defaults fill the variables you leave out. `--secret NAME` pass
 environment variable `NAME` (the task itself says where it may be typed). `--session <id>` runs it in a session you
 started. With `--json` it prints the whole task run. Ctrl+C stops the run.
 
-## Secrets
+## Credentials
 
-Project secrets are write-only: the AI types them as `%NAME%` (scope `agent`, the default) and shells get them as
-`$NAME` (scope `shell`), or both (`all`). The value never goes on the command line, where shell history and process lists
-would show it: `set` asks for it without showing what you type, or reads it from a pipe.
+Credentials are write-only and come in two types: a website **password** (sites, user name, password and an optional 2FA
+key) and a **secret** (one value, such as an API token). The AI types them as placeholders (`%NAME%` for a secret;
+`%NAME.username%`, `%NAME.password%` and `%NAME.otp%` for a password), only on the sites you saved them for (scope
+`agent`, the default); shells get them as `$NAME` (or `$NAME_USERNAME` and `$NAME_PASSWORD`) with scope `shell`, or both
+(`all`). A password's 2FA key never enters a shell: `boxline-otp NAME` there asks the platform for the current code.
+
+Values never go on the command line, where shell history and process lists would show them: `set` asks for them without
+showing what you type, or reads them from a pipe.
 
 ```bash
-boxline secrets set GITHUB_TOKEN --scope shell                    # asks for the value (hidden)
-boxline secrets set SITE_PASSWORD --origin https://example.com < password.txt
-boxline secrets list                                             # names, scope, sites; never the values
-boxline secrets delete GITHUB_TOKEN
+boxline credentials set GITHUB_TOKEN --scope shell               # a secret (the default type); asks for the value (hidden)
+boxline credentials set API_KEY --origin https://api.example.com < key.txt
+boxline credentials set SHOP --type password --username ops@example.com --origin https://shop.example.com   # asks for the password
+printf '%s\n%s\n' "$SHOP_PASSWORD" "$SHOP_2FA_KEY" | boxline credentials set SHOP --type password \
+  --username ops@example.com --origin https://shop.example.com --2fa                                       # password, then 2FA key
+boxline credentials list                                         # names, types, sites, user names; never the values
+boxline credentials delete GITHUB_TOKEN
+
+boxline run "Sign in to https://shop.example.com with %SHOP.username% and %SHOP.password%, then list my orders" --credential SHOP
 ```
 
-`set` on a name that exists gives it the new value and keeps the options you leave out. Piped input is taken whole, less
-one final line break, so keys of several lines work. `--shell` lets the AI use the secret in bash commands too.
+`set` on a name that exists gives it the new values and keeps the options you leave out (a new site needs the values
+again). A secret is taken whole, less one final line break, so keys of several lines work; a password is the first line
+and, with `--2fa`, the 2FA setup key (or an `otpauth://` link) is the second. `--remove-2fa` takes the key off. A password
+needs `--username` and at least one `--origin`, and a plan with password credentials. `--shell` lets the AI use the credential in
+bash commands too. Link a password to a browser profile with the SDK or the console so a run in that profile can sign in
+again by itself.
 
 ## Search
 
@@ -238,7 +254,7 @@ Colours are used only on a terminal, never when `NO_COLOR` is set (`FORCE_COLOR=
 | `boxline continue <runId>` | Carry on a run that stopped at a limit, and watch it |
 | `boxline message <runId> "<text>"` | Tell a working run something |
 | `boxline tasks list` / `boxline tasks run <id>` | List saved tasks; run one and print its result |
-| `boxline secrets list\|set\|delete` | Project secrets (`set` reads the value from a hidden prompt or stdin) |
+| `boxline credentials list\|set\|delete` | Passwords and secrets (`set` reads the values from a hidden prompt or stdin) |
 | `boxline search "<query>"` | Search the web (and fetch the top pages) |
 | `boxline fetch <url>` | Print a page as Markdown, HTML or text |
 | `boxline screenshot <url>` | Save a screenshot of a page |

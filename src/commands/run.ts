@@ -49,12 +49,22 @@ function variablesOf(ctx: Pick<Ctx, "parsed" | "env">, command: string) {
   return { ...vars, ...secrets };
 }
 
+/** --credential NAME (repeatable): saved credentials the run may use; the names only, never values. */
+export function credentialNames(p: Ctx["parsed"], command: string): string[] {
+  const names = list(p, "credential");
+  for (const name of names) {
+    if (!/^[A-Z_][A-Z0-9_]{0,63}$/.test(name)) throw new UsageError(`--credential ${name}: credential names are capitals, digits and _ (see "boxline credentials list")`, command);
+  }
+  return [...new Set(names)];
+}
+
 /** The run's parameters from the command line (exported for the unit tests). */
 export function runParams(ctx: Pick<Ctx, "parsed" | "env">): AgentRunParams {
   const p = ctx.parsed;
   const task = (arg(p, "task") ?? "").trim();
   if (!task) throw new UsageError("the task is empty", "run");
   const variables = variablesOf(ctx, "run");
+  const credentials = credentialNames(p, "run");
   const sessionId = str(p, "session");
   const model = str(p, "model");
   const captcha = str(p, "captcha") as CaptchaMode | undefined;
@@ -73,6 +83,7 @@ export function runParams(ctx: Pick<Ctx, "parsed" | "env">): AgentRunParams {
     ...(maxCostUsd !== undefined ? { maxCostUsd } : {}),
     ...(timeout !== undefined ? { timeout } : {}),
     ...(Object.keys(variables).length ? { variables } : {}),
+    ...(credentials.length ? { credentials } : {}),
   };
 }
 

@@ -5,11 +5,11 @@
  */
 import { commandHelp } from "./args.js";
 import * as account from "./commands/account.js";
+import * as credentials from "./commands/credentials.js";
 import * as files from "./commands/files.js";
 import { continueRun, message, run } from "./commands/run.js";
 import * as sessions from "./commands/sessions.js";
 import { exec, shell } from "./commands/shell.js";
-import * as secrets from "./commands/secrets.js";
 import * as tasks from "./commands/tasks.js";
 import * as web from "./commands/web.js";
 import { Ctx } from "./context.js";
@@ -29,9 +29,9 @@ const HANDLERS: Record<string, Handler> = {
   message,
   "tasks list": tasks.list,
   "tasks run": tasks.run,
-  "secrets list": secrets.list,
-  "secrets set": secrets.set,
-  "secrets delete": secrets.remove,
+  "credentials list": credentials.list,
+  "credentials set": credentials.set,
+  "credentials delete": credentials.remove,
   search: web.searchCommand,
   fetch: web.fetchCommand,
   screenshot: web.screenshotCommand,

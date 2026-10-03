@@ -59,6 +59,12 @@ export const SPECS: CommandSpec[] = [
         value: "NAME[@site]",
         description: "A secret from the environment variable NAME, used as %NAME% (the model never sees it)",
       },
+      credential: {
+        type: "string",
+        multiple: true,
+        value: "NAME",
+        description: "A saved credential (see boxline credentials) the AI may type, as %NAME% or %NAME.password% (the model never sees it)",
+      },
       captcha: { type: "string", choices: CAPTCHA, description: "When a CAPTCHA appears: ask a person (default), solve it, or ignore it" },
       keep: { type: "boolean", description: "Keep the run's session running afterwards" },
       steps: { type: "string", value: "n|none", description: 'Stop after this many steps, 1 to 1000 (default 30); "none": no step limit' },
@@ -76,11 +82,14 @@ export const SPECS: CommandSpec[] = [
       "",
       "Secrets: set the value in your environment, pass its name. Add @site to allow typing it only there:",
       "  --secret SITE_PASSWORD@https://example.com",
+      "Saved credentials (boxline credentials set): pass --credential NAME; a password is typed as %NAME.username% and",
+      "%NAME.password% (and %NAME.otp% with a 2FA key), only on the sites it was saved for.",
     ],
     examples: [
       'boxline run "Find the price of the cheapest plan on https://example.com/pricing"',
       'boxline run "Download the CSV from https://example.com/report and add up the revenue column" --shell',
       'SITE_PASSWORD=… boxline run "Sign in with %email% and %SITE_PASSWORD%" --var email=ada@example.com --secret SITE_PASSWORD@https://example.com',
+      'boxline run "Sign in to https://shop.example.com with %SHOP.username% and %SHOP.password%, then list my orders" --credential SHOP',
       'boxline run "Convert every video in the workspace to MP4" --shell --steps none --max-cost 2 --timeout 3600',
     ],
   },
@@ -147,41 +156,60 @@ export const SPECS: CommandSpec[] = [
     ],
   },
 
-  // ---------------------------------------------------------------- secrets
+  // ---------------------------------------------------------------- credentials
   {
-    path: ["secrets", "list"],
-    summary: "List the project's secrets (never their values)",
+    path: ["credentials", "list"],
+    summary: "List the project's credentials: passwords and secrets (never their values)",
     args: [],
     options: {
       limit: { type: "string", integer: { min: 1, max: 200 }, value: "n", description: "How many (default 100)" },
-      all: { type: "boolean", description: "Every secret, page after page" },
+      all: { type: "boolean", description: "Every credential, page after page" },
     },
   },
   {
-    path: ["secrets", "set"],
-    summary: "Create a secret, or give one a new value (read from stdin or a hidden prompt)",
+    path: ["credentials", "set"],
+    summary: "Create a credential, or give one new values (read from a hidden prompt or stdin)",
     args: [{ name: "name" }],
-    extraArgsError: "the value is never an argument (shell history and process lists would show it): type it at the prompt, or pipe it in",
+    extraArgsError: "values are never arguments (shell history and process lists would show them): type them at the prompt, or pipe them in",
     options: {
+      type: {
+        type: "string",
+        choices: ["password", "secret"],
+        description: "password (a website sign-in: --username, --origin, a password, optionally a 2FA key) or secret (one value, the default)",
+      },
+      username: { type: "string", value: "name", description: "A password's user name (not secret: it is shown in the list)" },
+      "2fa": { type: "boolean", description: "A password also has a 2FA setup key: it is asked for after the password (second line when piped)" },
+      "remove-2fa": { type: "boolean", description: "Take the 2FA key off a password" },
       scope: {
         type: "string",
         choices: ["agent", "shell", "all"],
-        description: "Where it may be used: agent (the default: only the AI, as %NAME%), shell (only as $NAME in shells), or all",
+        description: "Where it may be used: agent (the default: only the AI, as placeholders), shell (only as variables in shells), or all",
       },
-      origin: { type: "string", multiple: true, value: "site", description: "A site where the AI may type it, e.g. https://example.com (recommended for passwords)" },
+      origin: { type: "string", multiple: true, value: "site", description: "A site where the AI may type it, e.g. https://example.com (required for a password)" },
       shell: { type: "boolean", description: "Let the AI use it in bash commands (this also allows exporting it into shells)" },
       description: { type: "string", value: "text", description: "What it is for" },
     },
     notes: [
-      "The value never goes on the command line: type it at the hidden prompt, or pipe it in (taken whole, less one",
-      "final line break, so keys of several lines work). A secret that exists gets the new value; options you leave",
-      "out stay as they were. The value is never shown again, by the CLI or the API.",
+      "Values never go on the command line: type them at the hidden prompt, or pipe them in. A secret's value is taken",
+      "whole, less one final line break, so keys of several lines work. A password is the first line, and with --2fa",
+      "the 2FA setup key (or an otpauth:// link) is the second. A credential that exists gets the new values; options",
+      "you leave out stay as they were, and a new site, or a scope that lets shells read it, needs the values again.",
+      "Values are never shown again, by the CLI or the API. A password credential needs a plan with password",
+      "credentials (the loginDetails feature).",
+      "",
+      "The AI uses a secret as %NAME% and a password as %NAME.username%, %NAME.password% and %NAME.otp% (boxline run",
+      "--credential NAME). In a shell they are $NAME, or $NAME_USERNAME and $NAME_PASSWORD (scope shell or all).",
     ],
-    examples: ["boxline secrets set GITHUB_TOKEN --scope shell", "boxline secrets set SITE_PASSWORD --origin https://example.com < password.txt"],
+    examples: [
+      "boxline credentials set GITHUB_TOKEN --scope shell",
+      "boxline credentials set API_KEY --origin https://api.example.com < key.txt",
+      "boxline credentials set SHOP --type password --username ops@example.com --origin https://shop.example.com",
+      "printf '%s\\n%s\\n' \"$SHOP_PASSWORD\" \"$SHOP_2FA_KEY\" | boxline credentials set SHOP --type password --username ops@example.com --origin https://shop.example.com --2fa",
+    ],
   },
   {
-    path: ["secrets", "delete"],
-    summary: "Delete a secret",
+    path: ["credentials", "delete"],
+    summary: "Delete a credential (profiles that link it are unlinked)",
     args: [{ name: "name" }],
     options: {},
   },
@@ -360,7 +388,7 @@ export const SPECS: CommandSpec[] = [
   },
 ];
 
-export const GROUPS = ["sessions", "files", "tasks", "secrets"];
+export const GROUPS = ["sessions", "files", "tasks", "credentials"];
 
 /** The overview `boxline --help` prints. */
 export function mainHelp(version: string): string {
@@ -369,7 +397,7 @@ export function mainHelp(version: string): string {
     ["continue <runId>", "Carry on a run that stopped at a limit"],
     ["message <runId> <text>", "Tell a working run something"],
     ["tasks …", "list, run saved tasks"],
-    ["secrets …", "list, set, delete project secrets"],
+    ["credentials …", "list, set, delete passwords and secrets"],
     ["search <query>", "Search the web (and fetch the top pages)"],
     ["fetch <url>", "Print a page as Markdown, HTML or text"],
     ["screenshot <url>", "Save a screenshot of a page"],
