@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 (2026-10-05)
+
+### Fixed
+
+- `boxline run` and `boxline continue` print the agent's answer only on stdout again. Since 1.0.0 the answer also
+  showed among the steps on stderr, because a run stops (and saves) its own session before it ends, which takes a few
+  seconds.
+
 ## 1.0.0 (2026-10-05)
 
 Built on the Node SDK 2.0 (`@boxline/sdk` `^2.0.0`).

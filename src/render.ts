@@ -88,7 +88,7 @@ export class RunRenderer {
   /** The stream whose live output line is still open on screen, and streams whose line was ended for them. */
   private openLine: "stdout" | "stderr" | null = null;
   private readonly owesNewline = new Set<"stdout" | "stderr">();
-  /** Thought text held back briefly: when the run ends with the same text, it is the answer (printed on stdout). */
+  /** A text step held back until the next event: when the run ends with the same text, it is the answer (printed on stdout). */
   private pending: string | null = null;
   /** Steps shown so far: a reconnected stream replays them from the start. */
   steps = 0;
@@ -160,17 +160,13 @@ export class RunRenderer {
     }
   }
 
-  /** Held-back thought text, if any (the caller calls this after a short delay). */
+  /** Held-back text, if any (shown when the next event comes, or when the stream gives up). */
   flush(): string {
     if (this.pending === null) return "";
     const text = this.pending;
     this.pending = null;
     if (!text.trim()) return "";
     return this.endLive() + text.trim().split("\n").map((l) => `  ${this.s.dim(l)}`).join("\n") + "\n";
-  }
-
-  get hasPending() {
-    return this.pending !== null;
   }
 
   /** The line after the run: status, time, tokens and cost. */

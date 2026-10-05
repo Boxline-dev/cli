@@ -192,7 +192,6 @@ async function watch(
   const write = (text: string) => {
     if (text && !ctx.json) ctx.stderr.write(text);
   };
-  let flushTimer: NodeJS.Timeout | undefined;
   let done: Extract<AgentRunEvent, { type: "done" }> | null = null;
   let lastExecAt: string | null = null;
 
@@ -226,10 +225,10 @@ async function watch(
           }
           if (e.type === "handback" || e.type === "done" || (e.type === "status" && e.status === "running")) input.pause(null);
 
+          // A text step (a reply without tool calls) is held until the next event: when the run ends with it, it is the
+          // answer and goes to stdout instead. No timer: the run's own session is stopped (and saved) before "done" comes,
+          // which takes seconds, so a timer would print the answer here too.
           write(renderer.event(e));
-          clearTimeout(flushTimer);
-          // Thought text waits a moment: if the run ends with it, it is the answer and goes to stdout instead.
-          if (renderer.hasPending) flushTimer = setTimeout(() => write(renderer.flush()), 800);
           if (e.type === "done") done = e;
         }
       } catch (err) {
@@ -240,7 +239,7 @@ async function watch(
       if (!done) await sleep(Math.min(1000 * (attempt + 1), 5000));
     }
   } finally {
-    clearTimeout(flushTimer);
+    if (!done) write(renderer.flush()); // the stream gave up: show what was held back
     input.close();
     ctx.onInterrupt(null);
   }
