@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0 (2026-10-05)
+
+Built on the Node SDK 2.0 (`@boxline/sdk` `^2.0.0`).
+
+### Breaking
+
+- **`boxline sessions release` is gone: `sessions stop`, `sessions resume` and `sessions delete` replace it.**
+  `sessions stop <id>` saves the session exactly as it is (the whole browser and its files) and stops billing; it is kept
+  for your plan's days, then deleted. `sessions resume <id>` brings it back as it was. `sessions delete <id>` deletes it
+  for good, with its recording and its logs. `sessions list --status` takes `running`, `stopped`, `deleted` and `error`
+  (`paused` and `completed` are gone), and `sessions get` shows when a stopped session was stopped (and why) and when it
+  will be deleted.
+
 ## 0.3.0 (2026-10-03)
 
 Built on the Node SDK 1.3 (`@boxline/sdk` `^1.3.0`).

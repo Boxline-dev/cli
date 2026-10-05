@@ -223,7 +223,9 @@ boxline sessions create --shell                 # add --proxy, --timeout 900, --
 boxline sessions list                           # --status running, --limit 50, --all
 boxline sessions get <id>
 boxline sessions live <id>                      # the live view link: watch and take over in a browser
-boxline sessions release <id>                   # stop it (billing stops)
+boxline sessions stop <id>                      # save it as it is and stop billing (kept for your plan's days)
+boxline sessions resume <id>                    # bring a stopped session back, as it was
+boxline sessions delete <id>                    # delete it for good, with its recording and logs (cannot be undone)
 boxline sessions login <id> SHOP                # sign the browser in with a saved password credential (--url for the sign-in page)
 ```
 
@@ -287,7 +289,7 @@ Colours are used only on a terminal, never when `NO_COLOR` is set (`FORCE_COLOR=
 | `boxline pdf <url>` | Save a page as a PDF |
 | `boxline extract <url>` | Pull structured data out of a page with AI |
 | `boxline crawl <url>` | Follow links from a page and collect what they say |
-| `boxline sessions list\|create\|get\|release\|login\|live` | Manage sessions (`login` signs the browser in with a password credential) |
+| `boxline sessions list\|create\|get\|stop\|resume\|delete\|login\|live` | Manage sessions (`login` signs the browser in with a password credential) |
 | `boxline exec <id> -- <command…>` | Run a command in a session's shell |
 | `boxline shell <id>` | Open an interactive terminal in a session |
 | `boxline files ls\|get\|put\|rm <id> <path> [local]` | Files in a session's workspace |

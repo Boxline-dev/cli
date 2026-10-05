@@ -93,13 +93,13 @@ export function parseEnv(pairs: string[], command = "exec"): Record<string, stri
   return out;
 }
 
-const STATUSES: SessionStatus[] = ["RUNNING", "PAUSED", "COMPLETED", "ERROR"];
+const STATUSES: SessionStatus[] = ["RUNNING", "STOPPED", "DELETED", "ERROR"];
 
-/** --status running,paused (any case). */
+/** --status running,stopped (any case). */
 export function parseStatus(value: string | undefined, command = "sessions list"): SessionStatus[] | undefined {
   if (value === undefined) return undefined;
   const list = value.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
-  for (const s of list) if (!STATUSES.includes(s as SessionStatus)) throw new UsageError(`--status ${s.toLowerCase()}: use running, paused, completed or error`, command);
+  for (const s of list) if (!STATUSES.includes(s as SessionStatus)) throw new UsageError(`--status ${s.toLowerCase()}: use running, stopped, deleted or error`, command);
   return list as SessionStatus[];
 }
 

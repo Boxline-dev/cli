@@ -1,4 +1,4 @@
-/** sessions list | create | get | release | login | live */
+/** sessions list | create | get | stop | resume | delete | login | live */
 import { CredentialCodeTimeoutError, CredentialLinkWrongSiteError, CredentialLoginFailedError, type CaptchaMode, type CreateSessionParams, type SessionData } from "@boxline/sdk";
 import { arg, bool, num, str } from "../args.js";
 import type { Ctx } from "../context.js";
@@ -10,7 +10,7 @@ export const kindOf = (s: Pick<SessionData, "browser" | "shell">) => (s.browser 
 export function statusText(status: SessionData["status"], s: Style): string {
   const word = status.toLowerCase();
   if (status === "RUNNING") return s.green(word);
-  if (status === "PAUSED") return s.yellow(word);
+  if (status === "STOPPED") return s.yellow(word);
   if (status === "ERROR") return s.red(word);
   return s.dim(word);
 }
@@ -34,15 +34,16 @@ export function sessionsTable(list: SessionData[], s: Style, now = Date.now()): 
 
 /** What `sessions get` and `sessions create` show. The signed URLs are left out: `sessions live` prints them. */
 export function sessionDetails(x: SessionData, s: Style, now = Date.now()): string {
-  const running = x.status === "RUNNING" || x.status === "PAUSED";
+  const running = x.status === "RUNNING";
   return details(
     [
       ["ID", s.bold(x.id)],
-      ["Status", statusText(x.status, s) + (x.endReason ? s.dim(` (${x.endReason.replace(/_/g, " ")})`) : "")],
+      ["Status", statusText(x.status, s) + (x.status === "STOPPED" && x.stopReason ? s.dim(` (${x.stopReason.replace(/_/g, " ")})`) : "")],
       ["Machine", kindOf(x).replace("+", " + ")],
       ["Created", `${formatDate(x.createdAt)} ${s.dim(`(${relativeTime(x.createdAt, now)})`)}`],
       ["Expires", running ? `${formatDate(x.expiresAt)} ${s.dim(`(${relativeTime(x.expiresAt, now)})`)}` : undefined],
-      ["Ended", x.endedAt ? formatDate(x.endedAt) : undefined],
+      ["Stopped", x.stoppedAt ? formatDate(x.stoppedAt) : undefined],
+      ["Deleted on", x.deletesAt ? `${formatDate(x.deletesAt)} ${s.dim(`(${relativeTime(x.deletesAt, now)})`)}` : x.deletedAt ? formatDate(x.deletedAt) : undefined],
       ["Proxy", x.proxy ? proxyText(x.proxy) : undefined],
       ["CAPTCHA", x.attention ? s.yellow(`${x.attention.kind} waiting on ${x.attention.url}`) : x.captcha],
       ["Workspace", x.shell ? x.workspacePath : undefined],
@@ -105,7 +106,7 @@ export async function create(ctx: Ctx): Promise<number> {
     session.data.browser ? `Watch it:  boxline sessions live ${id}` : null,
     session.data.shell ? `Terminal:  boxline shell ${id}` : null,
     session.data.shell ? `Run:       boxline exec ${id} -- ls` : null,
-    `Stop it:   boxline sessions release ${id}`,
+    `Stop it:   boxline sessions stop ${id}`,
   ].filter(Boolean);
   ctx.info(ctx.err.dim(hints.join("\n") + "\n"));
   return 0;
@@ -118,14 +119,38 @@ export async function get(ctx: Ctx): Promise<number> {
   return 0;
 }
 
-export async function release(ctx: Ctx): Promise<number> {
-  const session = await ctx.client().sessions.release(arg(ctx.parsed, "id")!);
+export async function stop(ctx: Ctx): Promise<number> {
+  const session = await ctx.client().sessions.stop(arg(ctx.parsed, "id")!);
   if (ctx.json) {
     ctx.printJson(session.data);
     return 0;
   }
   const x = session.data;
-  ctx.info(`${ctx.err.green("✓")} Released ${x.id} ${ctx.err.dim(`(ran ${formatDuration(x.usage.seconds * 1000)}, ${formatUsd(x.usage.costUsd)})`)}\n`);
+  const keep = x.deletesAt ? `kept until ${formatDate(x.deletesAt)}; "boxline sessions resume ${x.id}" brings it back` : "";
+  ctx.info(`${ctx.err.green("✓")} Stopped ${x.id} ${ctx.err.dim(`(ran ${formatDuration(x.usage.seconds * 1000)}, ${formatUsd(x.usage.costUsd)}${keep ? `; ${keep}` : ""})`)}\n`);
+  return 0;
+}
+
+export async function resume(ctx: Ctx): Promise<number> {
+  const session = await ctx.client().sessions.resume(arg(ctx.parsed, "id")!);
+  if (ctx.json) {
+    ctx.printJson(session.data);
+    return 0;
+  }
+  ctx.print(sessionDetails(session.data, ctx.out));
+  ctx.info(ctx.err.dim(`Watch it:  boxline sessions live ${session.id}\n`));
+  return 0;
+}
+
+/** `sessions delete`: ends the session for good, with what it saved, its recording and its logs. */
+export async function remove(ctx: Ctx): Promise<number> {
+  const session = await ctx.client().sessions.delete(arg(ctx.parsed, "id")!);
+  if (ctx.json) {
+    ctx.printJson(session.data);
+    return 0;
+  }
+  const x = session.data;
+  ctx.info(`${ctx.err.green("✓")} Deleted ${x.id} ${ctx.err.dim(`(ran ${formatDuration(x.usage.seconds * 1000)}, ${formatUsd(x.usage.costUsd)})`)}\n`);
   return 0;
 }
 
@@ -135,7 +160,7 @@ export async function live(ctx: Ctx): Promise<number> {
     ctx.printJson(urls);
     return 0;
   }
-  if (!urls.liveUrl) throw new CliError("this session has no live view: it has no browser, or it has ended", "no_live_view");
+  if (!urls.liveUrl) throw new CliError("this session has no live view: it has no browser, or it is not running", "no_live_view");
   ctx.print(`${urls.liveUrl}\n`);
   ctx.info(ctx.err.dim("Open it in a browser. Treat it like a password: anyone with the link can watch and control the session.\n"));
   return 0;

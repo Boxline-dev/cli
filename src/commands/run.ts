@@ -275,7 +275,7 @@ async function watch(
     if (opts.keepSession && opts.ownSession) {
       const id = started.sessionId;
       const shell = opts.shell ? ` · boxline shell ${id}` : "";
-      write(ctx.err.dim(`\nThe session is still running: boxline sessions live ${id}${shell} · boxline sessions release ${id}\n`));
+      write(ctx.err.dim(`\nThe session is still running: boxline sessions live ${id}${shell} · boxline sessions stop ${id}\n`));
     }
   }
   if (final.status === "completed") return 0;
