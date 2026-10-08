@@ -50,6 +50,7 @@ export const SPECS: CommandSpec[] = [
     args: [{ name: "task", variadic: true }],
     options: {
       shell: { type: "boolean", description: "Give the agent a bash shell next to the browser" },
+      "no-browser": { type: "boolean", description: "Shell only, no browser (needs --shell): the agent works with the shell and the files" },
       session: { type: "string", value: "id", description: "Work in this session instead of a new one" },
       model: { type: "string", value: "id", description: "The model, e.g. claude-sonnet-5 or gpt-6-sol (default: the server's)" },
       var: { type: "string", multiple: true, value: "name=value", description: "A value the task uses as %name%" },
@@ -69,7 +70,6 @@ export const SPECS: CommandSpec[] = [
       keep: { type: "boolean", description: "Keep the run's session running afterwards" },
       steps: { type: "string", value: "n|none", description: 'Stop after this many steps, 1 to 1000 (default 30); "none": no step limit' },
       "no-step-limit": { type: "boolean", description: "Same as --steps none: the run goes until it is done or its session's time ends" },
-      "max-steps": { type: "string", integer: { min: 1, max: 1000 }, value: "n", description: "Same as --steps n" },
       "max-cost": { type: "string", value: "usd", description: "Stop once the run's model cost reaches this many US dollars (0.01 to 100)" },
       timeout: { type: "string", integer: { min: 60 }, value: "seconds", description: "The run's own session's time (default 1800, or your plan's maximum)" },
     },
@@ -78,7 +78,7 @@ export const SPECS: CommandSpec[] = [
       "While it works, type a line and press Enter to send the agent a message; it reads it at its next step.",
       "Exit code: 0 when the run completed, 1 when it failed or stopped at a limit, 130 when you stopped it.",
       "A run that stops at a limit (steps, cost, errors in a row) keeps its session for 10 minutes:",
-      "  boxline continue <runId> carries it on.",
+      "  boxline resume <runId> carries it on: the same run, with more steps.",
       "",
       "Secrets: set the value in your environment, pass its name. Add @site to allow typing it only there:",
       "  --secret SITE_PASSWORD@https://example.com",
@@ -91,26 +91,28 @@ export const SPECS: CommandSpec[] = [
       'SITE_PASSWORD=… boxline run "Sign in with %email% and %SITE_PASSWORD%" --var email=ada@example.com --secret SITE_PASSWORD@https://example.com',
       'boxline run "Sign in to https://shop.example.com with %SHOP.username% and %SHOP.password%, then list my orders" --credential SHOP',
       'boxline run "Convert every video in the workspace to MP4" --shell --steps none --max-cost 2 --timeout 3600',
+      'boxline run "Write a script that sorts out the CSV files in the workspace and run it" --shell --no-browser',
     ],
   },
   {
-    path: ["continue"],
-    summary: "Carry on an agent run that stopped at a limit, and watch it",
+    path: ["resume"],
+    summary: "Go on with an agent run that stopped at a limit or was paused, and watch it",
     args: [{ name: "runId" }],
     options: {
-      steps: { type: "string", value: "n|none", description: 'Steps for the new run, 1 to 1000 (default: the run\'s own); "none": no step limit' },
+      steps: { type: "string", value: "n|none", description: 'Steps for this stretch, 1 to 1000 (default: the run\'s own); "none": no step limit' },
       "no-step-limit": { type: "boolean", description: "Same as --steps none" },
-      "max-cost": { type: "string", value: "usd", description: "The new run's cost limit in US dollars (default: the run's own)" },
-      note: { type: "string", value: "text", description: "An extra note for the agent (at most 2000 characters)" },
+      "max-cost": { type: "string", value: "usd", description: "The model cost this stretch may add, in US dollars (default: the run's own)" },
+      note: { type: "string", value: "text", description: "An extra note for the agent (at most 2000 characters); a paused run is also told you had the browser" },
       var: { type: "string", multiple: true, value: "name=value", description: "The run's variables again (values are never stored)" },
       secret: { type: "string", multiple: true, value: "NAME", description: "A secret variable again, from the environment variable NAME" },
     },
     notes: [
-      "For a run that stopped at its step limit, its cost limit, or after tool errors in a row, within 10 minutes.",
-      "The new run works in the same session and knows what the previous one did. Shown like boxline run.",
+      "The same run goes on (one job, one run id; its steps and usage add up). It works on a run that stopped at its step limit, its",
+      "cost limit, after tool errors in a row or a server restart (within 10 minutes), and on a paused run (after a CAPTCHA, or",
+      "when you took over in the live view). Shown like boxline run.",
       "A run that had --var or --secret values needs them again (they keep the sites they had).",
     ],
-    examples: ["boxline continue run_Xy12Ab34Cd56Ef78", 'boxline continue run_Xy12Ab34Cd56Ef78 --steps 50 --note "The download is done; do the upload"'],
+    examples: ["boxline resume run_Xy12Ab34Cd56Ef78", 'boxline resume run_Xy12Ab34Cd56Ef78 --steps 50 --note "The download is done; do the upload"', 'boxline resume run_Xy12Ab34Cd56Ef78 --note "I solved the CAPTCHA"'],
   },
   {
     path: ["message"],
@@ -383,10 +385,10 @@ export const SPECS: CommandSpec[] = [
   },
   {
     path: ["sessions", "live"],
-    summary: "Print the session's live view link (watch and take over in a browser)",
+    summary: "Print the session's live view link (watch and act in a browser)",
     args: [{ name: "id" }],
     options: {},
-    notes: ["The link works like a password: anyone who has it can watch and control the browser."],
+    notes: ["The link works like a password: anyone who has it can watch and control the browser.", "A session without a browser has none. --json prints the live, terminal and connect URLs the session has."],
   },
 
   // ---------------------------------------------------------------- shell
@@ -423,11 +425,15 @@ export const SPECS: CommandSpec[] = [
   },
   {
     path: ["files", "get"],
-    summary: "Download a file from a session",
+    summary: "Download a file, or a whole folder as a .tar.gz, from a session",
     args: [{ name: "id" }, { name: "path" }, { name: "local", optional: true }],
     options: {},
-    notes: ['[local] defaults to the file name in the current folder; "-" prints it to stdout.'],
-    examples: ["boxline files get <id> downloads/report.csv", "boxline files get <id> output/total.txt -"],
+    notes: [
+      '[local] defaults to the file name in the current folder; "-" prints it to stdout.',
+      "A folder comes down as one .tar.gz (<folder>.tar.gz by default; use . for the whole workspace): everything an agent made, in",
+      "one call. It also works on a stopped session, which is read without starting a machine.",
+    ],
+    examples: ["boxline files get <id> downloads/report.csv", "boxline files get <id> output/total.txt -", "boxline files get <id> results", "boxline files get <id> . workspace.tar.gz"],
   },
   {
     path: ["files", "put"],
@@ -451,7 +457,7 @@ export const GROUPS = ["sessions", "files", "tasks", "credentials"];
 export function mainHelp(version: string): string {
   const rows: [string, string][] = [
     ["run <task>", "Give the AI agent a task and watch it work"],
-    ["continue <runId>", "Carry on a run that stopped at a limit"],
+    ["resume <runId>", "Go on with a run that stopped at a limit or was paused"],
     ["message <runId> <text>", "Tell a working run something"],
     ["tasks …", "list, run saved tasks"],
     ["credentials …", "list, set, push-code, delete passwords and secrets"],

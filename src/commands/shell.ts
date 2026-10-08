@@ -53,7 +53,7 @@ const EOT = "\u0004";
 export async function shell(ctx: Ctx): Promise<number> {
   const id = arg(ctx.parsed, "id")!;
   // Fresh signed URLs: the terminal URL is a bearer credential, used here and never printed.
-  const urls = await ctx.client().sessions.live(id);
+  const urls = (await ctx.client().sessions.get(id)).data;
   if (!urls.terminalUrl) throw new CliError('this session has no shell (start one with "boxline sessions create --shell")', "no_shell");
   const { stdin, stdout } = ctx;
   const interactive = Boolean(stdin.isTTY);

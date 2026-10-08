@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.0.0 (2026-10-07)
+
+Built on the Node SDK 3.0 (`@boxline/sdk` `^3.0.0`) and an API from 7 October 2026 or later.
+
+### Breaking
+
+- **`boxline continue <runId>` is now `boxline resume <runId>`, and the same run goes on.** It used to start a new run in the
+  same session; now it is one job with one run id, and its steps and usage add up. The options are `--steps`, `--no-step-limit`,
+  `--max-cost` and `--note` (the same option as before), plus `--var` and `--secret` as before; a run that is paused is also told
+  that you had the browser. The summary of a run that stopped at a
+  limit says `Resume: boxline resume <runId> …`. In a run you are watching, pressing Enter after a pause or a CAPTCHA resumes it.
+  `boxline continue` is gone.
+- **The summary's `continuable` is `resumable`** in `--json` output of `boxline run` and `boxline resume` (the agent run as the
+  API returns it), and `continuedFrom` and `continuedBy` are gone from it.
+- **`sessions live --json` prints the URLs of the session** (`liveUrl`, `terminalUrl`, `connectUrl`, from a read of it); the
+  text output is unchanged. `boxline shell` also reads its terminal address that way.
+
+### Added
+
+- **`boxline run --no-browser`** (with `--shell`): a shell-only run, with no browser. The run's own session is sent as
+  `session` (`--shell`, `--no-browser`, `--captcha` and `--timeout` are its settings); `--session` still works in an existing
+  session, which keeps its own settings.
+- **`boxline files get <id> <folder>` downloads the folder as a `.tar.gz`** (`<folder>.tar.gz` by default; `.` is the whole
+  workspace; `-` prints it). It also works on a stopped session, which is read without starting a machine. A file downloads as
+  before.
+- `boxline usage` shows agent runs and their model cost, and how many sessions of the plan's limit are running.
+
 ## 1.0.1 (2026-10-05)
 
 ### Fixed

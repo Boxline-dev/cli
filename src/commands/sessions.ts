@@ -154,8 +154,10 @@ export async function remove(ctx: Ctx): Promise<number> {
   return 0;
 }
 
+/** `sessions live`: the session's signed URLs, which every read of a session returns fresh. */
 export async function live(ctx: Ctx): Promise<number> {
-  const urls = await ctx.client().sessions.live(arg(ctx.parsed, "id")!);
+  const { liveUrl, terminalUrl, connectUrl } = (await ctx.client().sessions.get(arg(ctx.parsed, "id")!)).data;
+  const urls = { liveUrl, terminalUrl, connectUrl };
   if (ctx.json) {
     ctx.printJson(urls);
     return 0;

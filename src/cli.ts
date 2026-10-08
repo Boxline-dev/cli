@@ -7,7 +7,7 @@ import { commandHelp } from "./args.js";
 import * as account from "./commands/account.js";
 import * as credentials from "./commands/credentials.js";
 import * as files from "./commands/files.js";
-import { continueRun, message, run } from "./commands/run.js";
+import { message, resumeRun, run } from "./commands/run.js";
 import * as sessions from "./commands/sessions.js";
 import { exec, shell } from "./commands/shell.js";
 import * as tasks from "./commands/tasks.js";
@@ -25,7 +25,7 @@ const HANDLERS: Record<string, Handler> = {
   whoami: account.whoami,
   usage: account.usage,
   run,
-  continue: continueRun,
+  resume: resumeRun,
   message,
   "tasks list": tasks.list,
   "tasks run": tasks.run,

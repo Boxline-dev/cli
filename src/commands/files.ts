@@ -1,7 +1,7 @@
 /** files ls | get | put | rm: the session's /workspace (shared by the shell and the browser's downloads). */
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import type { FileList } from "@boxline/sdk";
+import { NotADirectoryError, type FileList } from "@boxline/sdk";
 import { arg } from "../args.js";
 import type { Ctx } from "../context.js";
 import { CliError, formatBytes, formatDate, table, type Style } from "../output.js";
@@ -29,16 +29,29 @@ export async function ls(ctx: Ctx): Promise<number> {
   return 0;
 }
 
+/** What a folder is saved as by default: `<folder>.tar.gz` (the whole workspace: workspace.tar.gz). */
+export const archiveName = (path: string) => `${baseName(path === "." || path === "/" ? "workspace" : path) || "workspace"}.tar.gz`;
+
 export async function get(ctx: Ctx): Promise<number> {
   const id = arg(ctx.parsed, "id")!;
   const path = arg(ctx.parsed, "path")!;
-  let local = arg(ctx.parsed, "local") ?? (baseName(path) || "download");
-  const bytes = await ctx.client().sessions.files.read(id, path);
+  const bx = ctx.client();
+  // A folder comes down as one .tar.gz, a file as itself. Listing a file is the API's 400 not_a_directory, so one call tells which it is.
+  const isFolder = await bx.sessions.files.list(id, path).then(
+    () => true,
+    (err: unknown) => {
+      if (err instanceof NotADirectoryError) return false;
+      throw err;
+    },
+  );
+  const fallback = isFolder ? archiveName(path) : baseName(path) || "download";
+  let local = arg(ctx.parsed, "local") ?? fallback;
+  const bytes = isFolder ? await bx.sessions.files.archive(id, path === "." || path === "/" ? undefined : path) : await bx.sessions.files.read(id, path);
   if (local === "-") {
     ctx.stdout.write(bytes);
     return 0;
   }
-  if (existsSync(local) && statSync(local).isDirectory()) local = join(local, baseName(path) || "download");
+  if (existsSync(local) && statSync(local).isDirectory()) local = join(local, fallback);
   try {
     writeFileSync(resolve(local), bytes);
   } catch (err) {

@@ -83,7 +83,8 @@ export async function usage(ctx: Ctx): Promise<number> {
     details(
       [
         ["Period", `${formatDate(u.from)} to ${formatDate(u.to)}`],
-        ["Sessions", `${u.sessions}${u.running ? ` (${u.running} running now)` : ""}`],
+        ["Sessions", `${u.sessions}${u.running ? ` (${u.running} of ${u.concurrencyLimit} running now)` : ""}`],
+        ["Agent runs", u.agentRuns ? `${u.agentRuns} (model cost ${formatUsd(u.modelCostUsd)} on Boxline's keys${u.ownKeyModelCostUsd ? `, ${formatUsd(u.ownKeyModelCostUsd)} on your own` : ""})` : undefined],
         ["Browser time", formatDuration(u.browserSeconds * 1000)],
         ["Shell machines", `${hours(u.sandboxVcpuSeconds)} vCPU-hours · ${hours(u.sandboxGibSeconds)} GiB-hours`],
         ["Proxy data", `${proxyGb.toFixed(3)} GB (${formatUsd(u.proxy.costUsd)})`],

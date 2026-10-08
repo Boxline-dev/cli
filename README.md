@@ -66,6 +66,7 @@ The page is the placeholder site for documentation examples.
 | Option | What it does |
 |---|---|
 | `--shell` | Give the agent a bash shell (Python, Node, sudo) next to the browser |
+| `--no-browser` | With `--shell`: a shell-only run, no browser (the agent works with the shell and the files) |
 | `--session <id>` | Work in a session you started (it keeps its own settings) |
 | `--model <id>` | Pick the model, e.g. `claude-sonnet-5` or `gpt-6-sol` |
 | `--var name=value` | A value the task uses as `%name%` |
@@ -91,7 +92,7 @@ The model only ever sees `%SITE_PASSWORD%`; the platform fills in the value righ
 everything it shows and keeps. For a value you keep, save a [credential](#credentials) and pass `--credential NAME`.
 
 When the agent asks for help (to sign in, say) the run pauses: open the browser with the command it shows
-(`boxline sessions live <id>`), do what is needed, then press Enter in the terminal to hand the browser back (type a
+(`boxline sessions live <id>`), do what is needed, then press Enter in the terminal to resume the run (type a
 note first if you like), or type your answer and press Enter. A CAPTCHA that waits for a person works the same way, and
 the run carries on by itself once it is solved.
 
@@ -106,13 +107,15 @@ managed and what is left, keeps its session for 10 minutes, and tells you how to
 ```
 ✗ stopped after 30 steps without finishing (4 min · 81,200 tokens · $0.41)
   Downloaded the video and cut 3 reels. The upload to the site is left.
-Continue: boxline continue run_8f2k… [--steps 30] [--note "..."] (until 14:05)
+Resume: boxline resume run_8f2k… [--steps 30] [--note "..."] (until 14:05)
 ```
 
-`boxline continue <runId>` starts a new run in the same session that knows what the first one did, and shows it the
-same way (`--steps`, `--max-cost`, `--note`; a run that had `--var` or `--secret` values needs them again; its
-`--credential`s carry over). The exit code
-stays 1 for a run that stopped at a limit.
+`boxline resume <runId>` goes on with the **same run** (one job, one run id; its steps and usage add up) in the same
+session, and shows it the same way (`--steps`, `--max-cost`, `--note`; a run that had `--var` or `--secret`
+values needs them again; its `--credential`s carry over). It also resumes a run that is paused (after a CAPTCHA, or
+when you took over in the live view): `boxline resume <runId> --note "I solved it"`; the note is an extra line for the
+agent in both cases. The exit code stays 1 for a run
+that stopped at a limit.
 
 ## Saved tasks
 
@@ -216,13 +219,14 @@ boxline crawl https://example.com/docs --limit 50 -o docs           # one Markdo
 
 ## Sessions
 
-A session is one isolated machine with a browser and, if you ask for it, a shell, sharing one `/workspace` disk.
+A session is one isolated machine with a browser, a shell or both (`--shell`; `--shell --no-browser` for a shell only),
+sharing one `/workspace` disk.
 
 ```bash
 boxline sessions create --shell                 # add --proxy, --timeout 900, --idle-timeout 300, --captcha solve…
 boxline sessions list                           # --status running, --limit 50, --all
 boxline sessions get <id>
-boxline sessions live <id>                      # the live view link: watch and take over in a browser
+boxline sessions live <id>                      # the live view link: watch and act in a browser (a session with a browser)
 boxline sessions stop <id>                      # save it as it is and stop billing (kept for your plan's days)
 boxline sessions resume <id>                    # bring a stopped session back, as it was
 boxline sessions delete <id>                    # delete it for good, with its recording and logs (cannot be undone)
@@ -242,6 +246,7 @@ boxline shell <id>                              # an interactive terminal; Ctrl+
 
 boxline files ls <id> downloads
 boxline files get <id> downloads/report.csv     # saves report.csv here ("-" prints it)
+boxline files get <id> results                  # a folder comes down as results.tar.gz (. is the whole workspace)
 boxline files put <id> data/input.csv ./input.csv
 echo hello | boxline files put <id> hello.txt -
 boxline files rm <id> hello.txt
@@ -279,7 +284,7 @@ Colours are used only on a terminal, never when `NO_COLOR` is set (`FORCE_COLOR=
 | Command | What it does |
 |---|---|
 | `boxline run "<task>"` | Give the AI agent a task and watch it work |
-| `boxline continue <runId>` | Carry on a run that stopped at a limit, and watch it |
+| `boxline resume <runId>` | Go on with a run that stopped at a limit or was paused (the same run), and watch it |
 | `boxline message <runId> "<text>"` | Tell a working run something |
 | `boxline tasks list` / `boxline tasks run <id>` | List saved tasks; run one and print its result |
 | `boxline credentials list\|set\|push-code\|delete` | Passwords and secrets (`set` reads the values from a hidden prompt or stdin; `push-code` sends a 2FA code or sign-in link the same way) |

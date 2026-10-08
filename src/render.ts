@@ -11,7 +11,7 @@ export interface RenderOptions {
   columns?: number;
 }
 
-const STEP_TYPES = new Set(["text", "tool", "handover", "handback", "captcha", "message"]);
+const STEP_TYPES = new Set(["text", "tool", "handover", "resume", "captcha", "message"]);
 export const isStep = (e: AgentRunEvent): e is AgentStep => STEP_TYPES.has(e.type);
 
 /** Tool outputs worth a second line: what a click or typing acted on and the page after it, or what was read. */
@@ -103,10 +103,10 @@ export class RunRenderer {
     this.columns = Math.max(40, opts.columns ?? 100);
   }
 
-  header(run: AgentRunStarted, opts: { ownSession: boolean; continuedFrom?: string }): string {
+  header(run: AgentRunStarted, opts: { ownSession: boolean; resumed?: boolean }): string {
     const where = opts.ownSession ? `session ${run.sessionId}` : `in session ${run.sessionId}`;
-    const from = opts.continuedFrom ? ` · continues ${opts.continuedFrom}` : "";
-    return this.s.dim(`Agent run ${run.id} · ${run.provider} ${run.model} · ${where}${from}`) + "\n";
+    const again = opts.resumed ? " · resumed" : "";
+    return this.s.dim(`Agent run ${run.id} · ${run.provider} ${run.model} · ${where}${again}`) + "\n";
   }
 
   /** The echo of a message typed in this terminal (sent with agent.sendMessage). */
@@ -144,9 +144,9 @@ export class RunRenderer {
       case "handover":
         this.steps++;
         return out + this.endLive() + this.handover(e);
-      case "handback":
+      case "resume":
         this.steps++;
-        return out + this.endLive() + this.s.green("▶ ") + `Handed back to the agent${e.text ? `: ${oneLine(e.text, this.columns - 30)}` : ""}\n`;
+        return out + this.endLive() + this.s.green("▶ ") + `Resumed${e.text ? `: ${oneLine(e.text, this.columns - 30)}` : ""}\n`;
       case "captcha":
         this.steps++;
         return out + this.endLive() + this.captcha(e);
@@ -182,9 +182,9 @@ export class RunRenderer {
       // Stopped at a limit: what it managed (the model's own words) and how to go on.
       const lines = [`${this.s.red(`✗ ${limit}`)}${this.s.dim(` (${parts.join(" · ")})`)}`];
       if (run.resultText) lines.push(...run.resultText.trim().split("\n").map((l) => `  ${l}`));
-      if (run.continuable) {
+      if (run.resumable) {
         const cost = run.errorCode === "max_cost" ? " [--max-cost USD]" : "";
-        lines.push(this.s.bold(`Continue: boxline continue ${run.id} [--steps 30]${cost} [--note "..."]`) + this.s.dim(` (until ${clock(run.continuable.until)})`));
+        lines.push(this.s.bold(`Resume: boxline resume ${run.id} [--steps 30]${cost} [--note "..."]`) + this.s.dim(` (until ${clock(run.resumable.until)})`));
       }
       return lines.join("\n") + "\n";
     }
@@ -227,7 +227,7 @@ export class RunRenderer {
     const reason = step.text ? `: ${oneLine(step.text, this.columns - 40)}` : "";
     if (step.by === "agent") return `${this.s.yellow("⏸ The agent asks for your help")}${reason}\n${this.liveHint()}`;
     if (step.by === "captcha") return `${this.s.yellow("⏸ Paused for a CAPTCHA")}${reason}\n`;
-    return `${this.s.yellow("⏸ Paused: someone took over the browser")}${reason}\n`;
+    return `${this.s.yellow("⏸ Paused by a person")}${reason}\n`;
   }
 
   private captcha(step: AgentStep): string {

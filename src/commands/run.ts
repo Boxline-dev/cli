@@ -1,10 +1,10 @@
 /**
  * boxline run "<task>": starts an agent run, shows its steps live, prints the answer, exits 0 only if it completed.
- * boxline continue <runId>: carries on a run that stopped at one of its limits, shown the same way.
+ * boxline resume <runId>: goes on with a run that stopped at one of its limits or was paused: the same run, shown the same way.
  * boxline message <runId> "<text>": tells a working run something (it reads it at its next step).
  */
 import { createInterface, type Interface } from "node:readline";
-import type { AgentRun, AgentRunEvent, AgentRunParams, AgentRunStarted, Boxline, CaptchaMode, ContinueRunParams } from "@boxline/sdk";
+import type { AgentRun, AgentRunEvent, AgentRunParams, AgentRunStarted, Boxline, CaptchaMode, ResumeRunParams, SessionSpec } from "@boxline/sdk";
 import { arg, bool, list, num, str } from "../args.js";
 import type { Ctx } from "../context.js";
 import { UsageError } from "../output.js";
@@ -14,21 +14,20 @@ import { parseSecrets, parseVars } from "../values.js";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * --steps N (1–1000) or --steps none / --no-step-limit (no step limit: the session's time bounds the run); --max-steps is
- * the older spelling of --steps N. Undefined: the API's default (30), or on continue the run's own.
+ * --steps N (1–1000) or --steps none / --no-step-limit (no step limit: the session's time bounds the run). Undefined: the
+ * API's default (30), or on resume the run's own.
  */
 export function stepsOption(p: Ctx["parsed"], command: string): number | null | undefined {
   const steps = str(p, "steps");
-  const legacy = num(p, "max-steps");
   const none = bool(p, "no-step-limit");
-  if ([steps !== undefined, legacy !== undefined, none].filter(Boolean).length > 1) throw new UsageError("give the step limit once: --steps, --max-steps or --no-step-limit", command);
+  if (steps !== undefined && none) throw new UsageError("give the step limit once: --steps or --no-step-limit", command);
   if (none || steps === "none") return null;
   if (steps !== undefined) {
     const n = Number(steps);
     if (!/^\d+$/.test(steps) || n < 1 || n > 1000) throw new UsageError('--steps must be a whole number from 1 to 1000, or "none" for no step limit', command);
     return n;
   }
-  return legacy;
+  return undefined;
 }
 
 /** --max-cost USD: the run's money budget (model cost), 0.01 to 100. */
@@ -72,37 +71,45 @@ export function runParams(ctx: Pick<Ctx, "parsed" | "env">): AgentRunParams {
   const maxCostUsd = costOption(p, "run");
   const timeout = num(p, "timeout");
   if (sessionId && timeout !== undefined) throw new UsageError("--timeout is for a new session; a session given with --session keeps its own time", "run");
+  if (bool(p, "no-browser") && !bool(p, "shell")) throw new UsageError("--no-browser needs --shell (a session has a browser, a shell or both)", "run");
+  // The run's own session, in the same words `sessions create` and the API use. With --session the session has its own settings.
+  const session: SessionSpec = sessionId
+    ? {}
+    : {
+        ...(bool(p, "shell") ? { shell: true } : {}),
+        ...(bool(p, "no-browser") ? { browser: false } : {}),
+        ...(captcha ? { captcha } : {}),
+        ...(timeout !== undefined ? { timeout } : {}),
+      };
   return {
     task,
     ...(sessionId ? { sessionId } : {}),
-    ...(bool(p, "shell") ? { shell: true } : {}),
+    ...(Object.keys(session).length ? { session } : {}),
     ...(model ? { model } : {}),
-    ...(captcha ? { captcha } : {}),
     ...(bool(p, "keep") ? { keepSession: true } : {}),
     ...(maxSteps !== undefined ? { maxSteps } : {}),
     ...(maxCostUsd !== undefined ? { maxCostUsd } : {}),
-    ...(timeout !== undefined ? { timeout } : {}),
     ...(Object.keys(variables).length ? { variables } : {}),
     ...(credentials.length ? { credentials } : {}),
   };
 }
 
-/** What `boxline continue` sends (exported for the unit tests). */
-export function continueParams(ctx: Pick<Ctx, "parsed" | "env">): { runId: string; params: ContinueRunParams } {
+/** What `boxline resume` sends (exported for the unit tests). */
+export function resumeParams(ctx: Pick<Ctx, "parsed" | "env">): { runId: string; params: ResumeRunParams } {
   const p = ctx.parsed;
   const runId = (arg(p, "runId") ?? "").trim();
-  if (!runId) throw new UsageError("which run? boxline continue <runId>", "continue");
-  const maxSteps = stepsOption(p, "continue");
-  const maxCostUsd = costOption(p, "continue");
+  if (!runId) throw new UsageError("which run? boxline resume <runId>", "resume");
+  const maxSteps = stepsOption(p, "resume");
+  const maxCostUsd = costOption(p, "resume");
   const note = str(p, "note")?.trim();
-  // Values only: each variable keeps the sites and shell rule it had in the run being continued.
-  const variables = Object.fromEntries(Object.entries(variablesOf(ctx, "continue")).map(([name, v]) => [name, typeof v === "string" ? v : { value: v.value }]));
+  // Values only: each variable keeps the sites and shell rule it had in the run being resumed.
+  const variables = Object.fromEntries(Object.entries(variablesOf(ctx, "resume")).map(([name, v]) => [name, typeof v === "string" ? v : { value: v.value }]));
   return {
     runId,
     params: {
+      ...(note ? { note } : {}),
       ...(maxSteps !== undefined ? { maxSteps } : {}),
       ...(maxCostUsd !== undefined ? { maxCostUsd } : {}),
-      ...(note ? { instruction: note } : {}),
       ...(Object.keys(variables).length ? { variables } : {}),
     },
   };
@@ -111,8 +118,8 @@ export function continueParams(ctx: Pick<Ctx, "parsed" | "env">): { runId: strin
 /**
  * What a line typed in the terminal does while a run streams (a terminal only, never with --json):
  * - while it works: the line goes to the agent as a message (agent.sendMessage), echoed as "you: …";
- * - while it asks for help: the line is the answer (a message, which resumes it); a bare Enter hands the browser back;
- * - while someone else has the browser (a takeover, a CAPTCHA): Enter hands it back, the line as the note.
+ * - while it asks for help: the line is the answer (a message, which resumes it); a bare Enter resumes it;
+ * - while someone else has the browser (a pause, a CAPTCHA): Enter resumes the run, the line as the note.
  */
 class RunInput {
   private rl: Interface | null = null;
@@ -139,11 +146,11 @@ class RunInput {
     this.paused = by;
     if (!this.rl) return;
     if (by === "agent") {
-      this.ctx.info(this.ctx.err.bold("  Type your answer and press Enter (or just Enter to hand the browser back).\n"));
+      this.ctx.info(this.ctx.err.bold("  Type your answer and press Enter (or just Enter to resume the run).\n"));
       // What is typed here is kept in the run's steps: codes and passwords go into the page itself.
       this.ctx.info(this.ctx.err.dim("  Type passwords and verification codes in the live view, not here: what you type here is kept in the run's steps.\n"));
     }
-    if (by === "user") this.ctx.info(this.ctx.err.bold("  Press Enter when you are done to hand the browser back (type a note first if you like).\n"));
+    if (by === "user") this.ctx.info(this.ctx.err.bold("  Press Enter when you are done to resume the run (type a note first if you like).\n"));
   }
 
   private async onLine(line: string) {
@@ -151,7 +158,7 @@ class RunInput {
     const fail = (err: Error) => this.ctx.info(this.ctx.err.red(`Could not send: ${err.message}\n`));
     if (this.paused === "user" || (this.paused === "agent" && !text)) {
       this.paused = null;
-      await this.bx.agent.handBack(this.runId, text || undefined).catch(fail);
+      await this.bx.agent.resume(this.runId, text ? { note: text } : {}).catch(fail);
       return;
     }
     if (!text) return;
@@ -176,10 +183,12 @@ async function watch(
   ctx: Ctx,
   bx: Boxline,
   started: AgentRunStarted,
-  opts: { task: string; ownSession: boolean; keepSession?: boolean; shell?: boolean; continuedFrom?: string },
+  opts: { task: string; ownSession: boolean; keepSession?: boolean; shell?: boolean; resumed?: { steps: number } },
 ): Promise<number> {
   const renderer = new RunRenderer(started.sessionId, { style: ctx.err, columns: ctx.columns });
-  ctx.info(renderer.header(started, { ownSession: opts.ownSession, continuedFrom: opts.continuedFrom }));
+  // A resumed run is the same run: its stream replays the steps it already has, which this terminal showed (or the user knows).
+  if (opts.resumed) renderer.steps = opts.resumed.steps;
+  ctx.info(renderer.header(started, { ownSession: opts.ownSession, resumed: Boolean(opts.resumed) }));
   const t0 = Date.now();
 
   ctx.onInterrupt(async () => {
@@ -223,7 +232,7 @@ async function watch(
             input.pause(e.by);
             continue;
           }
-          if (e.type === "handback" || e.type === "done" || (e.type === "status" && e.status === "running")) input.pause(null);
+          if (e.type === "resume" || e.type === "done" || (e.type === "status" && e.status === "running")) input.pause(null);
 
           // A text step (a reply without tool calls) is held until the next event: when the run ends with it, it is the
           // answer and goes to stdout instead. No timer: the run's own session is stopped (and saved) before "done" comes,
@@ -258,7 +267,7 @@ async function watch(
     resultText: done!.resultText,
     error: done!.error,
     errorCode: done!.errorCode,
-    continuable: done!.continuable,
+    resumable: done!.resumable,
     usage: { inputTokens: 0, outputTokens: 0, costUsd: null },
     handover: null,
     createdAt: new Date(t0).toISOString(),
@@ -283,20 +292,20 @@ async function watch(
 
 export async function run(ctx: Ctx): Promise<number> {
   const params = runParams(ctx);
-  if (params.sessionId && (params.shell || params.captcha || params.keepSession)) {
-    ctx.info(ctx.err.yellow("Note: --shell, --captcha and --keep apply to a new session; with --session the session keeps its own settings.\n"));
+  if (params.sessionId && (bool(ctx.parsed, "shell") || bool(ctx.parsed, "no-browser") || str(ctx.parsed, "captcha") || params.keepSession)) {
+    ctx.info(ctx.err.yellow("Note: --shell, --no-browser, --captcha and --keep apply to a new session; with --session the session keeps its own settings.\n"));
   }
   const bx = ctx.client();
   const started = await bx.agent.run(params);
-  return watch(ctx, bx, started, { task: params.task, ownSession: !params.sessionId, keepSession: params.keepSession, shell: params.shell });
+  return watch(ctx, bx, started, { task: params.task, ownSession: !params.sessionId, keepSession: params.keepSession, shell: params.session?.shell });
 }
 
-/** boxline continue <runId>: a new run in the same session, streamed like `run`. */
-export async function continueRun(ctx: Ctx): Promise<number> {
-  const { runId, params } = continueParams(ctx);
+/** boxline resume <runId>: the same run goes on (it stopped at a limit, or a person had it), streamed like `run`. */
+export async function resumeRun(ctx: Ctx): Promise<number> {
+  const { runId, params } = resumeParams(ctx);
   const bx = ctx.client();
-  const next = await bx.agent.continueRun(runId, params);
-  return watch(ctx, bx, { id: next.id, status: "running", sessionId: next.sessionId, provider: next.provider, model: next.model, keySource: next.keySource, mode: next.mode }, { task: next.task, ownSession: false, continuedFrom: runId });
+  const run = await bx.agent.resume(runId, params);
+  return watch(ctx, bx, { id: run.id, status: "running", sessionId: run.sessionId, provider: run.provider, model: run.model, keySource: run.keySource, mode: run.mode }, { task: run.task, ownSession: false, resumed: { steps: run.steps.length } });
 }
 
 /** boxline message <runId> "<text>": the agent reads it at its next step. */
