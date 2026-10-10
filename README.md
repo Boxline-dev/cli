@@ -68,7 +68,7 @@ The page is the placeholder site for documentation examples.
 | `--shell` | Give the agent a bash shell (Python, Node, sudo) next to the browser |
 | `--no-browser` | With `--shell`: a shell-only run, no browser (the agent works with the shell and the files) |
 | `--session <id>` | Work in a session you started (it keeps its own settings) |
-| `--model <id>` | Pick the model, e.g. `claude-sonnet-5` or `gpt-6-sol` |
+| `--model <id>` | Pick the model, e.g. `claude-sonnet-5-5` or `gpt-6-sol` |
 | `--var name=value` | A value the task uses as `%name%` |
 | `--secret NAME` | A secret the task uses as `%NAME%`, read from the environment variable `NAME` |
 | `--secret NAME@https://example.com` | The same, typed only into fields on that site (recommended for passwords) |

@@ -52,7 +52,7 @@ export const SPECS: CommandSpec[] = [
       shell: { type: "boolean", description: "Give the agent a bash shell next to the browser" },
       "no-browser": { type: "boolean", description: "Shell only, no browser (needs --shell): the agent works with the shell and the files" },
       session: { type: "string", value: "id", description: "Work in this session instead of a new one" },
-      model: { type: "string", value: "id", description: "The model, e.g. claude-sonnet-5 or gpt-6-sol (default: the server's)" },
+      model: { type: "string", value: "id", description: "The model, e.g. claude-sonnet-5-5 or gpt-6-sol (default: the server's)" },
       var: { type: "string", multiple: true, value: "name=value", description: "A value the task uses as %name%" },
       secret: {
         type: "string",
